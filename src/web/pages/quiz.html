@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Take Quiz</title>
+    <link rel="stylesheet" href="/assets/tailwind.css" />
+    <script defer src="/assets/app.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body class="bg-neutral-950 text-neutral-100" x-data="quizPage()" x-init="init()">
+    <main class="mx-auto max-w-4xl p-6">
+      <h1 class="text-3xl font-bold" x-text="quiz.title || 'Quiz'"></h1>
+      <p class="mt-1 text-sm text-neutral-400" x-text="quiz.topic || ''"></p>
+      <p class="mt-1 text-sm text-neutral-500" x-text="quiz.summary || ''"></p>
+
+      <template x-if="loading">
+        <p class="mt-6">Loading quiz...</p>
+      </template>
+
+      <template x-if="!loading && currentQuestion">
+        <section class="card mt-6">
+          <p class="text-sm text-neutral-500" x-text="`Question ${index + 1} of ${quiz.questions.length}`"></p>
+          <h2 class="mt-2 text-xl font-semibold" x-text="currentQuestion.prompt"></h2>
+
+          <template x-if="currentQuestion.type === 'multiple_choice'">
+            <div class="mt-4 space-y-2">
+              <template x-for="(choice, choiceIndex) in currentQuestion.choices" :key="choiceIndex">
+                <label class="flex items-center gap-2 rounded border border-neutral-700 p-2">
+                  <input type="radio" name="mcq" :value="choiceIndex" x-model="userAnswer" />
+                  <span x-text="choice"></span>
+                </label>
+              </template>
+            </div>
+          </template>
+
+          <template x-if="currentQuestion.type === 'open_ended'">
+            <textarea class="mt-4 h-32 w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-200" x-model="userAnswer" placeholder="Type your answer..."></textarea>
+          </template>
+
+          <div class="mt-4 flex gap-3">
+            <button class="btn-primary" @click="submitAnswer">Submit Answer</button>
+            <button class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-neutral-200" @click="nextQuestion">Next</button>
+            <button class="rounded border border-emerald-500 bg-emerald-500/10 px-4 py-2 text-emerald-400" @click="finishAttempt">Finish Quiz</button>
+          </div>
+          <p class="mt-3 text-sm text-neutral-300" x-text="feedback"></p>
+        </section>
+      </template>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quiz Results</title>
+    <link rel="stylesheet" href="/assets/tailwind.css" />
+    <script defer src="/assets/app.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body class="bg-neutral-950 text-neutral-100" x-data="resultsPage()" x-init="init()">
+    <main class="mx-auto max-w-4xl p-6">
+      <h1 class="text-3xl font-bold">Quiz Results</h1>
+      <p class="mt-2 text-sm text-neutral-400">Review previous attempts and redo the quiz.</p>
+
+      <div class="mt-4 flex gap-3">
+        <a class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-neutral-200" href="/">Create Another Quiz</a>
+        <button class="btn-primary" @click="retake">Retake Quiz</button>
+      </div>
+
+      <section class="mt-6 space-y-3">
+        <template x-for="attempt in attempts" :key="attempt.id">
+          <article class="card">
+            <p><strong>Status:</strong> <span x-text="attempt.status"></span></p>
+            <p><strong>Score:</strong> <span x-text="attempt.scorePercent == null ? 'In progress' : `${attempt.scorePercent.toFixed(1)}%`"></span></p>
+            <p><strong>Answers:</strong> <span x-text="attempt.answerCount"></span></p>
+            <template x-if="attempt.summary?.weakAreas?.length">
+              <p class="text-sm text-amber-400">
+                Weak areas:
+                <span x-text="attempt.summary.weakAreas.slice(0, 2).join(' | ')"></span>
+              </p>
+            </template>
+          </article>
+        </template>
+      </section>
+    </main>
+  </body>
+</html>
