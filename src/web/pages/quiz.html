@@ -1,63 +1,66 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QuizForge - Take Quiz</title>
-    <link rel="stylesheet" href="/assets/tailwind.css" />
-    <script defer src="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.umd.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
-    <script defer src="/assets/app.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="/assets/styles.css" />
-  </head>
-  <body class="bg-neutral-950 text-neutral-100" x-data="quizPage()" x-init="init()">
-    <main class="mx-auto max-w-6xl p-6">
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <h1 class="text-3xl font-bold">QuizForge</h1>
-          <p class="mt-1 text-base font-medium text-neutral-300" x-text="quiz.title || 'Quiz'"></p>
-          <p class="mt-1 text-sm text-neutral-400" x-text="quiz.topic || ''"></p>
-          <p class="mt-1 text-sm text-neutral-500" x-text="quiz.summary || ''"></p>
-        </div>
-        <a class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-200" href="/dashboard">Dashboard</a>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuizForge - Take Quiz</title>
+  <link rel="stylesheet" href="/assets/tailwind.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.umd.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
+  <script defer src="/assets/app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+
+<body class="bg-neutral-950 text-neutral-100" x-data="quizPage()" x-init="init()">
+  <main class="mx-auto max-w-6xl p-6">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-3xl font-bold">QuizForge</h1>
+        <p class="mt-1 text-base font-medium text-neutral-300" x-text="quiz.title || 'Quiz'"></p>
+        <p class="mt-1 text-sm text-neutral-400" x-text="quiz.topic || ''"></p>
+        <p class="mt-1 text-sm text-neutral-500" x-text="quiz.summary || ''"></p>
       </div>
+      <a class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-200"
+        href="/dashboard">Dashboard</a>
+    </div>
 
-      <template x-if="loading">
-        <p class="mt-6">Loading quiz...</p>
-      </template>
+    <template x-if="loading">
+      <p class="mt-6">Loading quiz...</p>
+    </template>
 
-      <template x-if="!loading && currentQuestion">
-        <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <section class="card">
-            <p class="text-sm text-neutral-500" x-text="`Question ${index + 1} of ${quiz.questions.length}`"></p>
-            <h2 class="markdown-content mt-2 text-xl font-normal" x-html="renderMarkdown(currentQuestion.prompt)"></h2>
+    <template x-if="!loading && currentQuestion">
+      <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <section class="card">
+          <p class="text-sm text-neutral-500" x-text="`Question ${index + 1} of ${quiz.questions.length}`"></p>
+          <h2 class="markdown-content mt-2 text-xl font-normal" x-html="renderMarkdown(currentQuestion.prompt)"></h2>
 
-            <template x-if="currentQuestion.type === 'multiple_choice'">
-              <div class="mt-4 space-y-2">
-                <template x-for="(choice, choiceIndex) in currentQuestion.choices" :key="choiceIndex">
-                  <label class="flex items-start gap-2 rounded border border-neutral-700 p-2">
-                    <input type="radio" name="mcq" :value="choiceIndex" x-model="userAnswer" @change="onAnswerChanged" />
-                    <span class="markdown-content" x-html="renderMarkdown(choice, true)"></span>
-                  </label>
-                </template>
-              </div>
-            </template>
-
-            <template x-if="currentQuestion.type === 'open_ended'">
-              <textarea class="mt-4 h-32 w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-200" x-model="userAnswer" @input="onAnswerChanged" placeholder="Type your answer..."></textarea>
-            </template>
-
-            <div class="mt-4 flex flex-wrap gap-3">
-              <button class="btn-primary" @click="submitAnswer">Submit Answer</button>
-              <button class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-neutral-200" @click="nextQuestion">Next</button>
-              <button class="rounded border border-emerald-500 bg-emerald-500/10 px-4 py-2 text-emerald-400" @click="finishAttempt">Finish Quiz</button>
+          <template x-if="currentQuestion.type === 'multiple_choice'">
+            <div class="mt-4 space-y-2">
+              <template x-for="(choice, choiceIndex) in currentQuestion.choices" :key="choiceIndex">
+                <label class="flex items-start gap-2 rounded border border-neutral-700 p-2">
+                  <input type="radio" name="mcq" :value="choiceIndex" x-model="userAnswer" @change="onAnswerChanged" />
+                  <span class="markdown-content" x-html="renderMarkdown(choice, true)"></span>
+                </label>
+              </template>
             </div>
-            <div
-              class="mt-3 rounded border px-3 py-2 text-sm transition duration-200"
-              x-show="feedback"
-              x-transition.opacity.duration.150ms
-              :class="
+          </template>
+
+          <template x-if="currentQuestion.type === 'open_ended'">
+            <textarea class="mt-4 h-32 w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-200"
+              x-model="userAnswer" @input="onAnswerChanged" placeholder="Type your answer..."></textarea>
+          </template>
+
+          <div class="mt-4 flex flex-wrap gap-3">
+            <button class="btn-primary" @click="submitAnswer">Submit Answer</button>
+            <button class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-neutral-200"
+              @click="nextQuestion">Next</button>
+            <button class="rounded border border-emerald-500 bg-emerald-500/10 px-4 py-2 text-emerald-400"
+              @click="finishAttempt">Finish Quiz</button>
+          </div>
+          <div class="mt-3 rounded border px-3 py-2 text-sm transition duration-200" x-show="feedback"
+            x-transition.opacity.duration.150ms :class="
                 feedbackType === 'correct'
                   ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
                   : feedbackType === 'partial'
@@ -65,12 +68,11 @@
                     : feedbackType === 'incorrect'
                       ? 'border-rose-500/40 bg-rose-500/10 text-rose-100'
                       : 'border-neutral-700 bg-neutral-900 text-neutral-200'
-              "
-            >
-              <div class="flex items-start gap-2">
-                <span
-                  class="inline-flex min-w-12 justify-center rounded border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide"
-                  :class="
+              ">
+            <div class="flex items-start gap-2">
+              <span
+                class="inline-flex min-w-12 justify-center rounded border px-3 py-0.5 text-xs font-semibold uppercase tracking-wide"
+                :class="
                     feedbackType === 'correct'
                       ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-200'
                       : feedbackType === 'partial'
@@ -78,8 +80,7 @@
                         : feedbackType === 'incorrect'
                           ? 'border-rose-400/50 bg-rose-500/20 text-rose-200'
                           : 'border-neutral-600 bg-neutral-800 text-neutral-300'
-                  "
-                  x-text="
+                  " x-text="
                     feedbackType === 'correct'
                       ? 'OK'
                       : feedbackType === 'partial'
@@ -87,46 +88,55 @@
                         : feedbackType === 'incorrect'
                           ? 'TRY'
                           : 'NOTE'
-                  "
-                ></span>
-                <p class="markdown-content leading-relaxed" x-html="renderMarkdown(feedback, true)"></p>
-              </div>
+                  "></span>
+              <p class="markdown-content leading-relaxed" x-html="renderMarkdown(feedback, true)"></p>
             </div>
-          </section>
-
-          <section class="card quiz-chat-panel flex flex-col">
-            <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold">Quiz Chat</h3>
-              <div class="flex items-center gap-2">
-                <button class="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 text-xs text-neutral-300 disabled:cursor-not-allowed disabled:opacity-50" @click="resetChat" :disabled="chatLoading || !chatMessages.length">
-                  Reset Chat
-                </button>
-                <p class="text-xs text-neutral-500" x-show="attemptFinished">Chat disabled after finish</p>
-              </div>
-            </div>
-
-            <div class="quiz-chat-log mt-4 flex-1 space-y-3 overflow-y-auto rounded border border-neutral-800 bg-neutral-950/60 p-3">
-              <template x-if="!chatMessages.length">
-                <p class="text-sm text-neutral-500">Ask about this question or anything you've seen earlier in this quiz.</p>
-              </template>
-              <template x-for="(item, itemIndex) in chatMessages" :key="itemIndex">
-                <div class="rounded border px-3 py-2 text-sm" :class="item.role === 'user' ? 'ml-8 border-emerald-500/40 bg-emerald-500/10 text-emerald-100' : 'mr-8 border-neutral-700 bg-neutral-900 text-neutral-200'">
-                  <p class="whitespace-pre-wrap" x-text="item.content"></p>
-                </div>
-              </template>
-            </div>
-
-            <p class="mt-2 text-sm text-red-400" x-show="chatError" x-text="chatError"></p>
-            <div class="quiz-chat-compose mt-3 space-y-2">
-              <textarea class="quiz-chat-input h-24 w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-200" x-model="chatInput" :disabled="chatLoading || attemptFinished" placeholder="Ask a question about the quiz..."></textarea>
-              <button class="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50" @click="sendChatMessage" :disabled="chatLoading || attemptFinished || !chatInput.trim()">
-                <span x-show="!chatLoading">Send</span>
-                <span x-show="chatLoading">Thinking...</span>
-              </button>
-            </div>
-          </section>
           </div>
-      </template>
-    </main>
-  </body>
+        </section>
+
+        <section class="card quiz-chat-panel flex flex-col">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold">Quiz Chat</h3>
+            <div class="flex items-center gap-2">
+              <button
+                class="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 text-xs text-neutral-300 disabled:cursor-not-allowed disabled:opacity-50"
+                @click="resetChat" :disabled="chatLoading || !chatMessages.length">
+                Reset Chat
+              </button>
+              <p class="text-xs text-neutral-500" x-show="attemptFinished">Chat disabled after finish</p>
+            </div>
+          </div>
+
+          <div
+            class="quiz-chat-log mt-4 flex-1 space-y-3 overflow-y-auto rounded border border-neutral-800 bg-neutral-950/60 p-3">
+            <template x-if="!chatMessages.length">
+              <p class="text-sm text-neutral-500">Ask about this question or anything you've seen earlier in this quiz.
+              </p>
+            </template>
+            <template x-for="(item, itemIndex) in chatMessages" :key="itemIndex">
+              <div class="rounded border px-3 py-2 text-sm"
+                :class="item.role === 'user' ? 'ml-8 border-emerald-500/40 bg-emerald-500/10 text-emerald-100' : 'mr-8 border-neutral-700 bg-neutral-900 text-neutral-200'">
+                <p class="whitespace-pre-wrap" x-text="item.content"></p>
+              </div>
+            </template>
+          </div>
+
+          <p class="mt-2 text-sm text-red-400" x-show="chatError" x-text="chatError"></p>
+          <div class="quiz-chat-compose mt-3 space-y-2">
+            <textarea
+              class="quiz-chat-input h-24 w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-200"
+              x-model="chatInput" :disabled="chatLoading || attemptFinished"
+              placeholder="Ask a question about the quiz..."></textarea>
+            <button class="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50" @click="sendChatMessage"
+              :disabled="chatLoading || attemptFinished || !chatInput.trim()">
+              <span x-show="!chatLoading">Send</span>
+              <span x-show="chatLoading">Thinking...</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </template>
+  </main>
+</body>
+
 </html>
