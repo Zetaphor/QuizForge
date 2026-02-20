@@ -95,6 +95,16 @@ body {
   padding: 0;
 }
 
+.markdown-content .katex {
+  font-size: 1em;
+}
+
+.markdown-content .katex-display {
+  margin: 0.5rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 .weak-areas-controls {
   display: grid;
   grid-template-columns: 1fr;

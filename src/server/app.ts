@@ -359,14 +359,32 @@ export function createApp() {
     });
 
     return res.json({
-      quizzes: quizzes.map((quiz) => ({
-        id: quiz.id,
-        title: quiz.title,
-        topic: quiz.topic,
-        createdAt: quiz.createdAt,
-        questionCount: quiz.questions.length,
-        attemptCount: quiz.attempts.length
-      }))
+      quizzes: quizzes.map((quiz) => {
+        const finishedAttempts = quiz.attempts.filter(
+          (attempt) => attempt.status === "finished" && typeof attempt.scorePercent === "number"
+        );
+        const totalFinishedScore = finishedAttempts.reduce(
+          (sum, attempt) => sum + (attempt.scorePercent ?? 0),
+          0
+        );
+        const averageScorePercent = finishedAttempts.length
+          ? totalFinishedScore / finishedAttempts.length
+          : null;
+        const latestFinishedAttempt = finishedAttempts.sort(
+          (left, right) => (right.finishedAt?.getTime() ?? 0) - (left.finishedAt?.getTime() ?? 0)
+        )[0];
+        return {
+          id: quiz.id,
+          title: quiz.title,
+          topic: quiz.topic,
+          createdAt: quiz.createdAt,
+          questionCount: quiz.questions.length,
+          attemptCount: quiz.attempts.length,
+          completionCount: quiz.attempts.filter((attempt) => attempt.status === "finished").length,
+          lastScorePercent: latestFinishedAttempt?.scorePercent ?? null,
+          averageScorePercent
+        };
+      })
     });
   });
 

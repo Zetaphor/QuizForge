@@ -25,6 +25,7 @@ function renderMarkdownSafe(value, inline = false) {
 
   const marked = window.marked;
   const purifier = window.DOMPurify;
+  const renderMathInElement = window.renderMathInElement;
 
   if (!marked) {
     const escaped = escapeHtml(raw);
@@ -36,6 +37,21 @@ function renderMarkdownSafe(value, inline = false) {
     html = marked.parseInline(raw);
   } else {
     html = marked.parse(raw);
+  }
+
+  if (typeof renderMathInElement === "function" && typeof document !== "undefined") {
+    const mathContainer = document.createElement("div");
+    mathContainer.innerHTML = html;
+    renderMathInElement(mathContainer, {
+      throwOnError: false,
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
+      ]
+    });
+    html = mathContainer.innerHTML;
   }
 
   if (!purifier || typeof purifier.sanitize !== "function") {
@@ -343,6 +359,9 @@ window.resultsPage = function resultsPage() {
   return {
     quizId: "",
     attempts: [],
+    renderMarkdown(value, inline = false) {
+      return renderMarkdownSafe(value, inline);
+    },
     async init() {
       const params = new URLSearchParams(window.location.search);
       this.quizId = params.get("quizId") || localStorage.getItem("quizId") || "";

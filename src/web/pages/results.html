@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>QuizForge Results</title>
     <link rel="stylesheet" href="/assets/tailwind.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.umd.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
     <script defer src="/assets/app.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="/assets/styles.css" />
@@ -31,10 +36,14 @@
             <p><strong>Score:</strong> <span x-text="attempt.scorePercent == null ? 'In progress' : `${attempt.scorePercent.toFixed(1)}%`"></span></p>
             <p><strong>Answers:</strong> <span x-text="attempt.answerCount"></span></p>
             <template x-if="attempt.summary?.weakAreas?.length">
-              <p class="text-sm text-amber-400">
-                Weak areas:
-                <span x-text="attempt.summary.weakAreas.slice(0, 2).join(' | ')"></span>
-              </p>
+              <div class="text-sm text-amber-400">
+                <p><strong>Weak areas:</strong></p>
+                <ul class="mt-1 list-disc space-y-1 pl-5">
+                  <template x-for="(weakArea, weakAreaIndex) in attempt.summary.weakAreas.slice(0, 2)" :key="weakAreaIndex">
+                    <li class="markdown-content text-amber-300" x-html="renderMarkdown(weakArea, true)"></li>
+                  </template>
+                </ul>
+              </div>
             </template>
           </article>
         </template>
