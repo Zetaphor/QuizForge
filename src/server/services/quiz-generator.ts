@@ -138,6 +138,29 @@ function fallbackQuiz(topic: string, title: string, count: number): FinalQuiz {
   };
 }
 
+function clampQuestionCount(value: number): number {
+  return Math.max(4, Math.min(20, Math.round(value)));
+}
+
+export function chooseQuestionCountFromSources(
+  sources: NormalizedSource[],
+  coverage: { concepts: string[]; misconceptions: string[]; learningGoals: string[] }
+): number {
+  const totalChars = sources.reduce((sum, source) => sum + source.content.length, 0);
+  let baseCount = 6;
+
+  if (totalChars >= 25000) baseCount = 14;
+  else if (totalChars >= 12000) baseCount = 12;
+  else if (totalChars >= 6000) baseCount = 10;
+  else if (totalChars >= 2500) baseCount = 8;
+
+  const complexitySignals =
+    coverage.concepts.length + coverage.misconceptions.length + Math.ceil(coverage.learningGoals.length / 2);
+  const complexityBoost = Math.min(4, Math.max(0, Math.ceil(complexitySignals / 5) - 1));
+
+  return clampQuestionCount(baseCount + complexityBoost);
+}
+
 export async function generateQuizIteratively(input: GenerateInput): Promise<{
   quiz: FinalQuiz;
   metadata: Record<string, unknown>;
@@ -148,7 +171,10 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
     console.log(`[QuizGen][${elapsedMs}ms] ${message}`);
   };
 
-  const questionCount = input.questionCount ?? 8;
+  const providedQuestionCount =
+    typeof input.questionCount === "number" && Number.isFinite(input.questionCount)
+      ? clampQuestionCount(input.questionCount)
+      : null;
   const autoMetadata = Boolean(input.autoMetadata);
   const userTitle = input.title?.trim();
   const userTopic = input.topic?.trim();
@@ -209,6 +235,19 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
   );
   logStep("Coverage analysis pass complete.");
 
+  const coverageForSizing = {
+    concepts: coerceStringArrayItems(coverage.concepts as unknown),
+    misconceptions: coerceStringArrayItems(coverage.misconceptions as unknown),
+    learningGoals: coerceStringArrayItems(coverage.learningGoals as unknown)
+  };
+  const resolvedQuestionCount =
+    providedQuestionCount ?? chooseQuestionCountFromSources(input.sources, coverageForSizing);
+  logStep(
+    providedQuestionCount == null
+      ? `Auto-selected question count: ${resolvedQuestionCount}.`
+      : `Using user-selected question count: ${resolvedQuestionCount}.`
+  );
+
   logStep("Starting question draft pass.");
   const draft = await llm.completeJson(
     [
@@ -219,13 +258,13 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
       {
         role: "user",
         content:
-          `Create ${questionCount} questions from this blueprint.\n` +
+          `Create ${resolvedQuestionCount} questions from this blueprint.\n` +
           `Must mix multiple_choice and open_ended.\n` +
           `Blueprint: ${JSON.stringify(coverage)}`
       }
     ],
     questionDraftSchema,
-    () => fallbackQuiz(coverage.topic || resolvedTopic, resolvedTitle, questionCount)
+    () => fallbackQuiz(coverage.topic || resolvedTopic, resolvedTitle, resolvedQuestionCount)
   );
   logStep("Question draft pass complete.");
 
@@ -266,13 +305,17 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
         content:
           `Produce final quiz JSON with title/topic/summary/questions.\n` +
           `Apply revisions: ${JSON.stringify(critique.revisions)}\n` +
-          `Question count target: ${questionCount}\n` +
+          `Question count target: ${resolvedQuestionCount}\n` +
           `Draft: ${JSON.stringify(draft)}`
       }
     ],
     finalQuizSchema,
     () => {
-      const fallback = fallbackQuiz(coverage.topic || resolvedTopic, draft.title || resolvedTitle, questionCount);
+      const fallback = fallbackQuiz(
+        coverage.topic || resolvedTopic,
+        draft.title || resolvedTitle,
+        resolvedQuestionCount
+      );
       return {
         ...fallback,
         topic: coverage.topic || resolvedTopic
@@ -295,7 +338,9 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
         title: resolvedTitle,
         topic: resolvedTopic,
         description: resolvedDescription,
-        autoMetadata
+        autoMetadata,
+        questionCount: resolvedQuestionCount,
+        autoQuestionCount: providedQuestionCount == null
       },
       generatedMetadata,
       coverage,

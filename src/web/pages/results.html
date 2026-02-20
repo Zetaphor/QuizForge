@@ -11,11 +11,16 @@
   </head>
   <body class="bg-neutral-950 text-neutral-100" x-data="resultsPage()" x-init="init()">
     <main class="mx-auto max-w-4xl p-6">
-      <h1 class="text-3xl font-bold">Quiz Results</h1>
-      <p class="mt-2 text-sm text-neutral-400">Review previous attempts and redo the quiz.</p>
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h1 class="text-3xl font-bold">Quiz Results</h1>
+          <p class="mt-2 text-sm text-neutral-400">Review previous attempts and redo the quiz.</p>
+        </div>
+        <a class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-200" href="/dashboard">Dashboard</a>
+      </div>
 
       <div class="mt-4 flex gap-3">
-        <a class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-neutral-200" href="/">Create Another Quiz</a>
+        <a class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-neutral-200" href="/builder">Create Another Quiz</a>
         <button class="btn-primary" @click="retake">Retake Quiz</button>
       </div>
 

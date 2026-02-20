@@ -19,6 +19,7 @@ window.sourcePage = function sourcePage() {
     description: "",
     topic: "",
     autoMetadata: true,
+    autoQuestionCount: true,
     questionCount: 8,
     status: "",
     loading: false,
@@ -31,6 +32,32 @@ window.sourcePage = function sourcePage() {
     ],
     generationStepIndex: -1,
     generationTickHandle: null,
+    clampQuestionCount(value) {
+      return Math.max(4, Math.min(20, Math.round(value)));
+    },
+    get estimatedQuestionCount() {
+      const youtubeCount = this.youtubeUrls
+        .split(/\n+/)
+        .map((item) => item.trim())
+        .filter(Boolean).length;
+      const fileBytes = this.files.reduce((sum, file) => sum + (file.size || 0), 0);
+      const inferredIngestedBytes =
+        this.sourceIds.length > 0 && fileBytes === 0 && youtubeCount === 0 ? this.sourceIds.length * 4000 : 0;
+      const estimatedBytes = fileBytes + youtubeCount * 12000 + inferredIngestedBytes;
+
+      let base = 6;
+      if (estimatedBytes >= 25000) base = 14;
+      else if (estimatedBytes >= 12000) base = 12;
+      else if (estimatedBytes >= 6000) base = 10;
+      else if (estimatedBytes >= 2500) base = 8;
+
+      const complexitySignals =
+        (this.topic.trim() ? 1 : 0) +
+        (this.title.trim() ? 1 : 0) +
+        (this.description.trim() ? 1 : 0) +
+        Math.min(3, youtubeCount);
+      return this.clampQuestionCount(base + complexitySignals);
+    },
     get currentGenerationStep() {
       if (this.generationStepIndex < 0) return "";
       return this.generationSteps[this.generationStepIndex] ?? "";
@@ -97,7 +124,7 @@ window.sourcePage = function sourcePage() {
             description: this.autoMetadata ? undefined : this.description || undefined,
             topic: this.topic || undefined,
             autoMetadata: this.autoMetadata,
-            questionCount: this.questionCount
+            questionCount: this.autoQuestionCount ? undefined : this.questionCount
           })
         });
         localStorage.setItem("quizId", result.quizId);
@@ -123,6 +150,11 @@ window.quizPage = function quizPage() {
     index: 0,
     userAnswer: "",
     feedback: "",
+    attemptFinished: false,
+    chatMessages: [],
+    chatInput: "",
+    chatLoading: false,
+    chatError: "",
     get currentQuestion() {
       return this.quiz.questions[this.index];
     },
@@ -171,12 +203,46 @@ window.quizPage = function quizPage() {
         this.feedback = "";
       }
     },
+    async sendChatMessage() {
+      if (!this.attemptId || !this.currentQuestion || this.chatLoading || this.attemptFinished) return;
+      const trimmed = this.chatInput.trim();
+      if (!trimmed) return;
+
+      this.chatError = "";
+      this.chatLoading = true;
+      this.chatMessages.push({
+        role: "user",
+        content: trimmed
+      });
+      this.chatInput = "";
+
+      try {
+        const result = await jsonFetch(`/api/attempts/${encodeURIComponent(this.attemptId)}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: trimmed,
+            questionId: this.currentQuestion.id,
+            questionIndex: this.index
+          })
+        });
+        this.chatMessages.push({
+          role: "assistant",
+          content: result.reply || "I could not generate a response right now."
+        });
+      } catch (error) {
+        this.chatError = error.message;
+      } finally {
+        this.chatLoading = false;
+      }
+    },
     async finishAttempt() {
       if (!this.attemptId) return;
       try {
         await jsonFetch(`/api/attempts/${encodeURIComponent(this.attemptId)}/finish`, {
           method: "POST"
         });
+        this.attemptFinished = true;
         window.location.href = `/results?quizId=${encodeURIComponent(this.quizId)}`;
       } catch (error) {
         this.feedback = error.message;
@@ -199,6 +265,286 @@ window.resultsPage = function resultsPage() {
     retake() {
       if (!this.quizId) return;
       window.location.href = `/quiz?quizId=${encodeURIComponent(this.quizId)}`;
+    }
+  };
+};
+
+window.dashboardPage = function dashboardPage() {
+  const FILTER_STORAGE_KEY = "dashboardFilters";
+
+  return {
+    filters: {
+      range: "30d",
+      quizId: ""
+    },
+    status: "Loading dashboard...",
+    overview: {
+      totalQuizzes: 0,
+      totalAttempts: 0,
+      completionRate: 0,
+      averageScore: 0,
+      latestScoreTrend: 0
+    },
+    quizzes: [],
+    learning: {
+      weakAreas: [],
+      questionTypeAccuracy: [],
+      retakeImprovement: []
+    },
+    availableQuizzes: [],
+    quizCatalog: [],
+    previewQuiz: null,
+    previewOpen: false,
+    chartInstances: {},
+    async init() {
+      this.restoreFilters();
+      await this.refreshAll();
+    },
+    restoreFilters() {
+      try {
+        const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          if (typeof parsed.range === "string") this.filters.range = parsed.range;
+          if (typeof parsed.quizId === "string") this.filters.quizId = parsed.quizId;
+        }
+      } catch {
+        // Ignore malformed localStorage payloads.
+      }
+    },
+    persistFilters() {
+      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(this.filters));
+    },
+    setQuickRange(range) {
+      this.filters.range = range;
+      this.refreshAll();
+    },
+    resetFilters() {
+      this.filters.range = "30d";
+      this.filters.quizId = "";
+      this.refreshAll();
+    },
+    queryString() {
+      const params = new URLSearchParams();
+      params.set("range", this.filters.range);
+      if (this.filters.quizId) params.set("quizId", this.filters.quizId);
+      return params.toString();
+    },
+    chartTextColor() {
+      return "#d4d4d4";
+    },
+    axisColor() {
+      return "#525252";
+    },
+    afterDomPaint() {
+      return new Promise((resolve) => {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(resolve);
+        });
+      });
+    },
+    destroyChart(key) {
+      if (this.chartInstances[key]) {
+        this.chartInstances[key].destroy();
+        delete this.chartInstances[key];
+      }
+    },
+    safeChartRender(key, renderFn) {
+      try {
+        renderFn();
+      } catch (error) {
+        // Keep other charts rendering even if one chart fails.
+        console.error(`[Dashboard] Failed to render chart: ${key}`, error);
+      }
+    },
+    renderLineChart(canvasId, key, labels, data, color, label) {
+      if (!window.Chart) return;
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      this.destroyChart(key);
+      this.chartInstances[key] = new window.Chart(context, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label,
+              data,
+              borderColor: color,
+              backgroundColor: color,
+              tension: 0.25
+            }
+          ]
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              ticks: { color: this.chartTextColor() },
+              grid: { color: this.axisColor() }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { color: this.chartTextColor() },
+              grid: { color: this.axisColor() }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: this.chartTextColor() }
+            }
+          }
+        }
+      });
+    },
+    renderBarChart(canvasId, key, labels, data, color, label) {
+      if (!window.Chart) return;
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      this.destroyChart(key);
+      this.chartInstances[key] = new window.Chart(context, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            {
+              label,
+              data,
+              backgroundColor: color
+            }
+          ]
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              ticks: { color: this.chartTextColor() },
+              grid: { color: this.axisColor() }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { color: this.chartTextColor() },
+              grid: { color: this.axisColor() }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: this.chartTextColor() }
+            }
+          }
+        }
+      });
+    },
+    renderDoughnutChart(canvasId, key, labels, data) {
+      if (!window.Chart) return;
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      this.destroyChart(key);
+      this.chartInstances[key] = new window.Chart(context, {
+        type: "doughnut",
+        data: {
+          labels,
+          datasets: [
+            {
+              data,
+              backgroundColor: ["#22c55e", "#16a34a", "#15803d", "#166534", "#86efac"]
+            }
+          ]
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: this.chartTextColor() }
+            }
+          }
+        }
+      });
+    },
+    renderCharts(attemptsOverTime) {
+      const labels = attemptsOverTime.map((point) => point.date);
+      const attemptCounts = attemptsOverTime.map((point) => point.attempts);
+      const averageScores = attemptsOverTime.map((point) => point.avgScore);
+
+      this.safeChartRender("attemptsChart", () => {
+        this.renderLineChart("attemptsChart", "attemptsChart", labels, attemptCounts, "#22c55e", "Attempts");
+      });
+      this.safeChartRender("scoreChart", () => {
+        this.renderLineChart("scoreChart", "scoreChart", labels, averageScores, "#4ade80", "Avg Score %");
+      });
+
+      const accuracyLabels = this.learning.questionTypeAccuracy.map((item) => item.type);
+      const accuracyValues = this.learning.questionTypeAccuracy.map((item) => item.averageScore);
+      this.safeChartRender("accuracyChart", () => {
+        this.renderDoughnutChart("accuracyChart", "accuracyChart", accuracyLabels, accuracyValues);
+      });
+
+      const retakeLabels = this.learning.retakeImprovement.map((item) => item.quizTitle);
+      const retakeValues = this.learning.retakeImprovement.map((item) => item.trendDelta);
+      this.safeChartRender("retakeChart", () => {
+        this.renderBarChart("retakeChart", "retakeChart", retakeLabels, retakeValues, "#16a34a", "Trend Delta %");
+      });
+    },
+    async refreshAll() {
+      this.status = "Refreshing dashboard analytics...";
+      this.persistFilters();
+      try {
+        const query = this.queryString();
+        const [overviewPayload, quizzesPayload, learningPayload] = await Promise.all([
+          jsonFetch(`/api/analytics/overview?${query}`),
+          jsonFetch(`/api/analytics/quizzes?${query}`),
+          jsonFetch(`/api/analytics/learning?${query}`)
+        ]);
+
+        this.overview = overviewPayload.overview;
+        this.availableQuizzes = overviewPayload.availableQuizzes || [];
+        this.quizzes = quizzesPayload.quizzes || [];
+        this.learning = learningPayload.learning || {
+          weakAreas: [],
+          questionTypeAccuracy: [],
+          retakeImprovement: []
+        };
+
+        await this.afterDomPaint();
+        this.renderCharts(overviewPayload.charts?.attemptsOverTime || []);
+        await this.loadQuizCatalog();
+        this.status = "Dashboard updated.";
+      } catch (error) {
+        this.status = error.message;
+      }
+    },
+    async loadQuizCatalog() {
+      const payload = await jsonFetch("/api/quizzes");
+      this.quizCatalog = payload.quizzes || [];
+    },
+    startQuiz(quizId) {
+      window.location.href = `/quiz?quizId=${encodeURIComponent(quizId)}`;
+    },
+    async openQuizPreview(quizId) {
+      const payload = await jsonFetch(`/api/quizzes/${encodeURIComponent(quizId)}`);
+      this.previewQuiz = payload;
+      this.previewOpen = true;
+    },
+    closeQuizPreview() {
+      this.previewOpen = false;
+      this.previewQuiz = null;
+    },
+    downloadCsv() {
+      const query = this.queryString();
+      window.location.href = `/api/analytics/export.csv?${query}`;
     }
   };
 };

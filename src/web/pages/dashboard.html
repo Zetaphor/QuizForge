@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Analytics Dashboard</title>
+    <link rel="stylesheet" href="/assets/tailwind.css" />
+    <script defer src="/assets/app.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body class="bg-neutral-950 text-neutral-100" x-data="dashboardPage()" x-init="init()">
+    <main class="mx-auto max-w-7xl p-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold">Dashboard</h1>
+          <p class="mt-1 text-sm text-neutral-400">Track quiz activity, learning outcomes, and retake improvements.</p>
+        </div>
+        <a class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-neutral-200" href="/builder">Quiz Builder</a>
+      </div>
+
+      <section class="card mt-6">
+        <div class="mb-4 flex flex-wrap items-center gap-2">
+          <button class="rounded border px-3 py-1 text-sm" :class="filters.range === '1d' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-neutral-700 bg-neutral-900 text-neutral-200'" @click="setQuickRange('1d')">Today</button>
+          <button class="rounded border px-3 py-1 text-sm" :class="filters.range === '7d' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-neutral-700 bg-neutral-900 text-neutral-200'" @click="setQuickRange('7d')">This Week</button>
+          <button class="rounded border px-3 py-1 text-sm" :class="filters.range === '30d' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-neutral-700 bg-neutral-900 text-neutral-200'" @click="setQuickRange('30d')">This Month</button>
+          <button class="rounded border px-3 py-1 text-sm" :class="filters.range === 'all' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-neutral-700 bg-neutral-900 text-neutral-200'" @click="setQuickRange('all')">All Time</button>
+          <button class="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 text-sm text-neutral-300" @click="resetFilters">Reset</button>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-4">
+          <label class="text-sm">
+            <span class="mb-1 block font-medium">Time Range</span>
+            <select class="w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-200" x-model="filters.range" @change="refreshAll">
+              <option value="1d">Today</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="90d">Last 90 Days</option>
+              <option value="all">All Time</option>
+            </select>
+          </label>
+
+          <label class="text-sm md:col-span-2">
+            <span class="mb-1 block font-medium">Quiz Filter</span>
+            <select class="w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-200" x-model="filters.quizId" @change="refreshAll">
+              <option value="">All Quizzes</option>
+              <template x-for="quiz in availableQuizzes" :key="quiz.id">
+                <option :value="quiz.id" x-text="quiz.title"></option>
+              </template>
+            </select>
+          </label>
+
+          <div class="flex items-end">
+            <button class="btn-primary w-full" @click="downloadCsv">Export CSV</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <article class="card">
+          <p class="text-sm text-neutral-400">Total Quizzes</p>
+          <p class="mt-2 text-3xl font-semibold" x-text="overview.totalQuizzes"></p>
+        </article>
+        <article class="card">
+          <p class="text-sm text-neutral-400">Total Attempts</p>
+          <p class="mt-2 text-3xl font-semibold" x-text="overview.totalAttempts"></p>
+        </article>
+        <article class="card">
+          <p class="text-sm text-neutral-400">Completion Rate</p>
+          <p class="mt-2 text-3xl font-semibold" x-text="`${overview.completionRate.toFixed(1)}%`"></p>
+        </article>
+        <article class="card">
+          <p class="text-sm text-neutral-400">Average Score</p>
+          <p class="mt-2 text-3xl font-semibold" x-text="`${overview.averageScore.toFixed(1)}%`"></p>
+        </article>
+        <article class="card">
+          <p class="text-sm text-neutral-400">Latest Trend</p>
+          <p class="mt-2 text-3xl font-semibold" x-text="`${overview.latestScoreTrend >= 0 ? '+' : ''}${overview.latestScoreTrend.toFixed(1)}%`"></p>
+        </article>
+      </section>
+
+      <section class="mt-6 grid gap-4 xl:grid-cols-2">
+        <article class="card">
+          <h2 class="text-lg font-semibold">Attempts Over Time</h2>
+          <div class="mt-3 h-64">
+            <canvas id="attemptsChart"></canvas>
+          </div>
+        </article>
+        <article class="card">
+          <h2 class="text-lg font-semibold">Average Score Over Time</h2>
+          <div class="mt-3 h-64">
+            <canvas id="scoreChart"></canvas>
+          </div>
+        </article>
+        <article class="card">
+          <h2 class="text-lg font-semibold">Question-Type Accuracy</h2>
+          <div class="mt-3 h-64">
+            <canvas id="accuracyChart"></canvas>
+          </div>
+        </article>
+        <article class="card">
+          <h2 class="text-lg font-semibold">Retake Improvement</h2>
+          <div class="mt-3 h-64">
+            <canvas id="retakeChart"></canvas>
+          </div>
+        </article>
+      </section>
+
+      <section class="mt-6 grid gap-4 xl:grid-cols-2">
+        <article class="card">
+          <h2 class="text-lg font-semibold">Weak Areas</h2>
+          <ul class="mt-3 space-y-2 text-sm">
+            <template x-for="item in learning.weakAreas" :key="item.prompt">
+              <li class="rounded border border-neutral-800 bg-neutral-900/60 p-2">
+                <span class="font-medium" x-text="item.prompt"></span>
+                <span class="ml-2 text-neutral-400" x-text="`missed ${item.missCount} times`"></span>
+              </li>
+            </template>
+          </ul>
+          <p class="mt-3 text-sm text-neutral-500" x-show="learning.weakAreas.length === 0">No weak areas found for this filter.</p>
+        </article>
+
+        <article class="card">
+          <h2 class="text-lg font-semibold">Per-Quiz Performance</h2>
+          <div class="mt-3 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="text-neutral-400">
+                <tr>
+                  <th class="py-2">Quiz</th>
+                  <th class="py-2">Attempts</th>
+                  <th class="py-2">Avg</th>
+                  <th class="py-2">Completion</th>
+                  <th class="py-2">Trend</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="quiz in quizzes" :key="quiz.quizId">
+                  <tr class="border-t border-neutral-800">
+                    <td class="py-2" x-text="quiz.quizTitle"></td>
+                    <td class="py-2" x-text="quiz.attempts"></td>
+                    <td class="py-2" x-text="`${quiz.averageScore.toFixed(1)}%`"></td>
+                    <td class="py-2" x-text="`${quiz.completionRate.toFixed(1)}%`"></td>
+                    <td class="py-2" x-text="`${quiz.scoreTrendDelta >= 0 ? '+' : ''}${quiz.scoreTrendDelta.toFixed(1)}%`"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-3 text-sm text-neutral-500" x-show="quizzes.length === 0">No quiz analytics yet.</p>
+        </article>
+      </section>
+
+      <section class="mt-6">
+        <article class="card">
+          <h2 class="text-lg font-semibold">Existing Quizzes</h2>
+          <p class="mt-1 text-sm text-neutral-400">Start a quiz attempt or preview questions before taking it.</p>
+          <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="text-neutral-400">
+                <tr>
+                  <th class="py-2">Quiz</th>
+                  <th class="py-2">Topic</th>
+                  <th class="py-2">Questions</th>
+                  <th class="py-2">Attempts</th>
+                  <th class="py-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="quiz in quizCatalog" :key="quiz.id">
+                  <tr class="border-t border-neutral-800">
+                    <td class="py-2" x-text="quiz.title"></td>
+                    <td class="py-2" x-text="quiz.topic || '-'"></td>
+                    <td class="py-2" x-text="quiz.questionCount"></td>
+                    <td class="py-2" x-text="quiz.attemptCount"></td>
+                    <td class="py-2">
+                      <div class="flex flex-wrap gap-2">
+                        <button class="rounded border border-emerald-500 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-400" @click="startQuiz(quiz.id)">
+                          Take Quiz
+                        </button>
+                        <button class="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 text-xs text-neutral-200" @click="openQuizPreview(quiz.id)">
+                          Preview Questions
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-3 text-sm text-neutral-500" x-show="quizCatalog.length === 0">No quizzes created yet.</p>
+        </article>
+      </section>
+
+      <p class="mt-4 text-sm text-neutral-400" x-text="status"></p>
+    </main>
+
+    <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4" x-show="previewOpen" x-cloak>
+      <div class="w-full max-w-3xl rounded border border-neutral-700 bg-neutral-950 p-5">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="text-xl font-semibold" x-text="previewQuiz?.title || 'Quiz Preview'"></h3>
+            <p class="mt-1 text-sm text-neutral-400" x-text="previewQuiz?.topic || ''"></p>
+          </div>
+          <button class="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 text-sm text-neutral-300" @click="closeQuizPreview">Close</button>
+        </div>
+        <ul class="mt-4 max-h-[60vh] space-y-2 overflow-y-auto text-sm">
+          <template x-for="(question, idx) in (previewQuiz?.questions || [])" :key="question.id">
+            <li class="rounded border border-neutral-800 bg-neutral-900/50 p-3">
+              <p class="text-xs uppercase tracking-wide text-neutral-500" x-text="`Question ${idx + 1} (${question.type})`"></p>
+              <p class="mt-1 text-neutral-100" x-text="question.prompt"></p>
+              <template x-if="question.type === 'multiple_choice' && question.choices?.length">
+                <ul class="mt-2 list-disc pl-5 text-neutral-300">
+                  <template x-for="choice in question.choices" :key="choice">
+                    <li x-text="choice"></li>
+                  </template>
+                </ul>
+              </template>
+            </li>
+          </template>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>

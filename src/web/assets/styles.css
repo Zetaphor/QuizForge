@@ -35,6 +35,26 @@ body {
   animation: spin 1s linear infinite;
 }
 
+.quiz-chat-panel {
+  height: 34rem;
+}
+
+.quiz-chat-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.quiz-chat-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.quiz-chat-input {
+  min-height: 6rem;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

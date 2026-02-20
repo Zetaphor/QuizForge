@@ -3,6 +3,12 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import multer from "multer";
 import { db } from "./db.js";
+import {
+  formatAttemptsCsv,
+  getAnalyticsSnapshot,
+  getAttemptsExportRows,
+  parseAnalyticsFilters
+} from "./services/analytics.js";
 import { generateQuizIteratively } from "./services/quiz-generator.js";
 import {
   hashContent,
@@ -11,6 +17,7 @@ import {
   type NormalizedSource
 } from "./services/ingestion.js";
 import { gradeOpenEndedAnswer } from "./services/open-ended-grader.js";
+import { generateQuizChatReply } from "./services/quiz-chat.js";
 import { scoreMultipleChoice } from "./services/scoring.js";
 import { getYouTubeTranscript } from "./services/transcript.js";
 
@@ -60,9 +67,11 @@ export function createApp() {
 
   app.use("/assets", express.static(path.join(projectRoot, "src/web/assets")));
 
-  app.get("/", (_req, res) => res.sendFile(path.join(projectRoot, "src/web/pages/index.html")));
+  app.get("/", (_req, res) => res.sendFile(path.join(projectRoot, "src/web/pages/dashboard.html")));
+  app.get("/builder", (_req, res) => res.sendFile(path.join(projectRoot, "src/web/pages/index.html")));
   app.get("/quiz", (_req, res) => res.sendFile(path.join(projectRoot, "src/web/pages/quiz.html")));
   app.get("/results", (_req, res) => res.sendFile(path.join(projectRoot, "src/web/pages/results.html")));
+  app.get("/dashboard", (_req, res) => res.sendFile(path.join(projectRoot, "src/web/pages/dashboard.html")));
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
@@ -198,6 +207,27 @@ export function createApp() {
     }
   });
 
+  app.get("/api/quizzes", async (_req, res) => {
+    const quizzes = await db.quiz.findMany({
+      include: {
+        questions: true,
+        attempts: true
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    return res.json({
+      quizzes: quizzes.map((quiz) => ({
+        id: quiz.id,
+        title: quiz.title,
+        topic: quiz.topic,
+        createdAt: quiz.createdAt,
+        questionCount: quiz.questions.length,
+        attemptCount: quiz.attempts.length
+      }))
+    });
+  });
+
   app.get("/api/quizzes/:id", async (req, res) => {
     const quiz = await db.quiz.findUnique({
       where: { id: req.params.id },
@@ -302,6 +332,65 @@ export function createApp() {
     });
   });
 
+  app.post("/api/attempts/:attemptId/chat", async (req, res) => {
+    const message = String(req.body.message ?? "").trim();
+    const questionId = typeof req.body.questionId === "string" ? req.body.questionId : undefined;
+    const questionIndex = Number.isFinite(req.body.questionIndex) ? Number(req.body.questionIndex) : undefined;
+    if (!message) {
+      return res.status(400).json({ error: "message is required." });
+    }
+
+    const attempt = await db.attempt.findUnique({
+      where: { id: req.params.attemptId },
+      include: {
+        quiz: {
+          include: {
+            questions: { orderBy: { questionIndex: "asc" } }
+          }
+        },
+        answers: {
+          orderBy: { createdAt: "asc" }
+        }
+      }
+    });
+    if (!attempt) return res.status(404).json({ error: "Attempt not found." });
+    if (attempt.status === "finished") return res.status(409).json({ error: "Attempt is already finished." });
+
+    if (questionId) {
+      const questionForAttempt = attempt.quiz.questions.find((question) => question.id === questionId);
+      if (!questionForAttempt) return res.status(404).json({ error: "Question not found for this attempt." });
+    }
+
+    try {
+      const chat = await generateQuizChatReply({
+        quiz: {
+          title: attempt.quiz.title,
+          topic: attempt.quiz.topic,
+          summary: JSON.parse(attempt.quiz.quizJson).summary ?? "",
+          questions: attempt.quiz.questions.map((question) => ({
+            id: question.id,
+            prompt: question.prompt,
+            type: question.type
+          }))
+        },
+        answers: attempt.answers.map((answer) => ({
+          questionId: answer.questionId,
+          userAnswer: answer.userAnswer,
+          correctness: answer.correctness,
+          feedback: answer.feedback,
+          createdAt: answer.createdAt
+        })),
+        message,
+        questionId,
+        questionIndex
+      });
+      return res.json(chat);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to generate chat response.";
+      return res.status(500).json({ error: message });
+    }
+  });
+
   app.post("/api/attempts/:attemptId/finish", async (req, res) => {
     const attempt = await db.attempt.findUnique({
       where: { id: req.params.attemptId },
@@ -363,6 +452,76 @@ export function createApp() {
         answerCount: attempt.answers.length
       }))
     });
+  });
+
+  app.get("/api/analytics/overview", async (req, res) => {
+    try {
+      const filters = parseAnalyticsFilters({
+        range: typeof req.query.range === "string" ? req.query.range : undefined,
+        quizId: typeof req.query.quizId === "string" ? req.query.quizId : undefined
+      });
+      const snapshot = await getAnalyticsSnapshot(db, filters);
+      return res.json({
+        filters: snapshot.filters,
+        overview: snapshot.overview,
+        charts: snapshot.charts,
+        availableQuizzes: snapshot.availableQuizzes
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load overview analytics.";
+      return res.status(500).json({ error: message });
+    }
+  });
+
+  app.get("/api/analytics/quizzes", async (req, res) => {
+    try {
+      const filters = parseAnalyticsFilters({
+        range: typeof req.query.range === "string" ? req.query.range : undefined,
+        quizId: typeof req.query.quizId === "string" ? req.query.quizId : undefined
+      });
+      const snapshot = await getAnalyticsSnapshot(db, filters);
+      return res.json({
+        filters: snapshot.filters,
+        quizzes: snapshot.quizzes
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load per-quiz analytics.";
+      return res.status(500).json({ error: message });
+    }
+  });
+
+  app.get("/api/analytics/learning", async (req, res) => {
+    try {
+      const filters = parseAnalyticsFilters({
+        range: typeof req.query.range === "string" ? req.query.range : undefined,
+        quizId: typeof req.query.quizId === "string" ? req.query.quizId : undefined
+      });
+      const snapshot = await getAnalyticsSnapshot(db, filters);
+      return res.json({
+        filters: snapshot.filters,
+        learning: snapshot.learning
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load learning analytics.";
+      return res.status(500).json({ error: message });
+    }
+  });
+
+  app.get("/api/analytics/export.csv", async (req, res) => {
+    try {
+      const filters = parseAnalyticsFilters({
+        range: typeof req.query.range === "string" ? req.query.range : undefined,
+        quizId: typeof req.query.quizId === "string" ? req.query.quizId : undefined
+      });
+      const rows = await getAttemptsExportRows(db, filters);
+      const csv = formatAttemptsCsv(rows);
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", "attachment; filename=quiz-analytics.csv");
+      return res.send(csv);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to export analytics.";
+      return res.status(500).json({ error: message });
+    }
   });
 
   return app;
