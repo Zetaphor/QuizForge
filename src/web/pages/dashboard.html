@@ -179,47 +179,55 @@
         <article class="card">
           <h2 class="text-lg font-semibold">Existing Quizzes</h2>
           <p class="mt-1 text-sm text-neutral-400">Start a quiz attempt or preview questions before taking it.</p>
-          <div class="mt-4 overflow-x-auto">
-            <table class="w-full text-left text-sm">
-              <thead class="text-neutral-400">
-                <tr>
-                  <th class="py-2">Quiz</th>
-                  <th class="py-2">Topic</th>
-                  <th class="py-2">Questions</th>
-                  <th class="py-2">Attempts</th>
-                  <th class="py-2">Completions</th>
-                  <th class="py-2">Last Score</th>
-                  <th class="py-2">Avg Score</th>
-                  <th class="py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template x-for="quiz in quizCatalog" :key="quiz.id">
-                  <tr class="border-t border-neutral-800">
-                    <td class="py-2" x-text="quiz.title"></td>
-                    <td class="py-2" x-text="quiz.topic || '-'"></td>
-                    <td class="py-2" x-text="quiz.questionCount"></td>
-                    <td class="py-2" x-text="quiz.attemptCount"></td>
-                    <td class="py-2" x-text="quiz.completionCount ?? 0"></td>
-                    <td class="py-2" x-text="typeof quiz.lastScorePercent === 'number' ? `${quiz.lastScorePercent.toFixed(1)}%` : '-'"></td>
-                    <td class="py-2" x-text="typeof quiz.averageScorePercent === 'number' ? `${quiz.averageScorePercent.toFixed(1)}%` : '-'"></td>
-                    <td class="py-2">
-                      <div class="flex flex-wrap gap-2">
-                        <button class="rounded border border-emerald-500 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-400" @click="startQuiz(quiz.id)">
-                          Take Quiz
-                        </button>
-                        <button class="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 text-xs text-neutral-200" @click="openQuizPreview(quiz.id)">
-                          Preview Questions
-                        </button>
-                        <button class="rounded border border-rose-700 bg-rose-900/20 px-3 py-1 text-xs text-rose-300" @click="deleteQuiz(quiz.id, quiz.title)">
-                          Delete Quiz
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
+          <div class="mt-4 space-y-4">
+            <template x-for="quiz in quizCatalog" :key="quiz.id">
+              <section class="rounded border border-neutral-800 bg-neutral-900/40 p-5">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 class="text-lg font-semibold text-neutral-100" x-text="quiz.title"></h3>
+                    <p class="mt-1 text-sm text-neutral-400" x-text="quiz.topic || 'No topic provided'"></p>
+                    <p
+                      class="mt-2 text-xs text-neutral-500"
+                      :title="quiz.lastAttemptAt ? new Date(quiz.lastAttemptAt).toLocaleString() : ''"
+                      x-text="`Last attempt: ${formatRelativeTime(quiz.lastAttemptAt)}`"
+                    ></p>
+                  </div>
+                  <div class="flex flex-wrap justify-end gap-2">
+                    <button class="rounded border border-rose-700 bg-rose-900/20 px-3 py-1 text-xs text-rose-300" @click="deleteQuiz(quiz.id, quiz.title)">
+                      Delete Quiz
+                    </button>
+                    <button class="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 text-xs text-neutral-200" @click="openQuizPreview(quiz.id)">
+                      Preview
+                    </button>
+                    <button class="rounded border border-emerald-500 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-400" @click="startQuiz(quiz.id)">
+                      Take Quiz
+                    </button>
+                  </div>
+                </div>
+                <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <article class="rounded border border-neutral-800 bg-neutral-950/50 px-3 py-2">
+                    <p class="text-[11px] uppercase tracking-wide text-neutral-500">Questions</p>
+                    <p class="mt-1 text-base font-semibold text-neutral-100" x-text="quiz.questionCount"></p>
+                  </article>
+                  <article class="rounded border border-neutral-800 bg-neutral-950/50 px-3 py-2">
+                    <p class="text-[11px] uppercase tracking-wide text-neutral-500">Attempts</p>
+                    <p class="mt-1 text-base font-semibold text-neutral-100" x-text="quiz.attemptCount"></p>
+                  </article>
+                  <article class="rounded border border-neutral-800 bg-neutral-950/50 px-3 py-2">
+                    <p class="text-[11px] uppercase tracking-wide text-neutral-500">Completions</p>
+                    <p class="mt-1 text-base font-semibold text-neutral-100" x-text="quiz.completionCount ?? 0"></p>
+                  </article>
+                  <article class="rounded border border-neutral-800 bg-neutral-950/50 px-3 py-2">
+                    <p class="text-[11px] uppercase tracking-wide text-neutral-500">Last Score</p>
+                    <p class="mt-1 text-base font-semibold text-neutral-100" x-text="typeof quiz.lastScorePercent === 'number' ? `${quiz.lastScorePercent.toFixed(1)}%` : '-'"></p>
+                  </article>
+                  <article class="rounded border border-neutral-800 bg-neutral-950/50 px-3 py-2">
+                    <p class="text-[11px] uppercase tracking-wide text-neutral-500">Avg Score</p>
+                    <p class="mt-1 text-base font-semibold text-neutral-100" x-text="typeof quiz.averageScorePercent === 'number' ? `${quiz.averageScorePercent.toFixed(1)}%` : '-'"></p>
+                  </article>
+                </div>
+              </section>
+            </template>
           </div>
           <p class="mt-3 text-sm text-neutral-500" x-show="quizCatalog.length === 0">No quizzes created yet.</p>
         </article>
@@ -237,7 +245,24 @@
           </div>
           <button class="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 text-sm text-neutral-300" @click="closeQuizPreview">Close</button>
         </div>
-        <ul class="mt-4 max-h-[60vh] space-y-2 overflow-y-auto text-sm">
+        <div class="mt-4 flex items-center gap-2">
+          <button
+            class="rounded border px-3 py-1 text-xs"
+            :class="previewTab === 'questions' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-neutral-700 bg-neutral-900 text-neutral-300'"
+            @click="previewTab = 'questions'"
+          >
+            Questions
+          </button>
+          <button
+            class="rounded border px-3 py-1 text-xs"
+            :class="previewTab === 'sources' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-neutral-700 bg-neutral-900 text-neutral-300'"
+            @click="previewTab = 'sources'"
+          >
+            Sources
+          </button>
+        </div>
+
+        <ul class="mt-3 max-h-[60vh] space-y-2 overflow-y-auto text-sm" x-show="previewTab === 'questions'">
           <template x-for="(question, idx) in (previewQuiz?.questions || [])" :key="question.id">
             <li class="rounded border border-neutral-800 bg-neutral-900/50 p-3">
               <p class="flex items-center gap-2 text-xs tracking-wide text-neutral-500">
@@ -258,6 +283,20 @@
             </li>
           </template>
         </ul>
+
+        <div class="mt-3 max-h-[60vh] space-y-2 overflow-y-auto text-sm" x-show="previewTab === 'sources'">
+          <template x-for="source in (previewQuiz?.sources || [])" :key="source.id">
+            <section class="rounded border border-neutral-800 bg-neutral-900/50 p-3">
+              <p class="text-xs uppercase tracking-wide text-neutral-500" x-text="source.origin"></p>
+              <p class="mt-1 font-medium text-neutral-100" x-text="source.title"></p>
+              <template x-if="source.externalRef">
+                <a class="mt-1 block text-xs text-emerald-400 hover:underline" :href="source.externalRef" target="_blank" rel="noopener noreferrer" x-text="source.externalRef"></a>
+              </template>
+              <div class="markdown-content mt-2 h-56 overflow-y-auto rounded border border-neutral-800 bg-black/30 p-3 text-neutral-300" x-html="renderMarkdown(source.content)"></div>
+            </section>
+          </template>
+          <p class="text-sm text-neutral-500" x-show="!(previewQuiz?.sources || []).length">No sources attached to this quiz.</p>
+        </div>
       </div>
     </div>
   </body>

@@ -405,6 +405,7 @@ window.dashboardPage = function dashboardPage() {
     troubleLoading: false,
     troubleStatus: "",
     previewQuiz: null,
+    previewTab: "questions",
     previewOpen: false,
     chartInstances: {},
     renderMarkdown(value, inline = false) {
@@ -412,6 +413,31 @@ window.dashboardPage = function dashboardPage() {
     },
     formatQuestionType(type) {
       return getQuestionTypeLabel(type);
+    },
+    formatRelativeTime(value) {
+      if (!value) return "Never attempted";
+      const timestamp = new Date(value);
+      if (Number.isNaN(timestamp.getTime())) return "Unknown";
+
+      const elapsedSeconds = (Date.now() - timestamp.getTime()) / 1000;
+      const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+      const units = [
+        ["year", 60 * 60 * 24 * 365],
+        ["month", 60 * 60 * 24 * 30],
+        ["week", 60 * 60 * 24 * 7],
+        ["day", 60 * 60 * 24],
+        ["hour", 60 * 60],
+        ["minute", 60],
+        ["second", 1]
+      ];
+
+      for (const [unit, secondsPerUnit] of units) {
+        if (Math.abs(elapsedSeconds) >= secondsPerUnit || unit === "second") {
+          const delta = -Math.round(elapsedSeconds / secondsPerUnit);
+          return rtf.format(delta, unit);
+        }
+      }
+      return "Just now";
     },
     async init() {
       this.restoreFilters();
@@ -650,9 +676,10 @@ window.dashboardPage = function dashboardPage() {
     startQuiz(quizId) {
       window.location.href = `/quiz?quizId=${encodeURIComponent(quizId)}`;
     },
-    async openQuizPreview(quizId) {
+    async openQuizPreview(quizId, tab = "questions") {
       const payload = await jsonFetch(`/api/quizzes/${encodeURIComponent(quizId)}`);
       this.previewQuiz = payload;
+      this.previewTab = tab === "sources" ? "sources" : "questions";
       this.previewOpen = true;
     },
     async deleteQuiz(quizId, quizTitle) {
@@ -675,6 +702,7 @@ window.dashboardPage = function dashboardPage() {
     closeQuizPreview() {
       this.previewOpen = false;
       this.previewQuiz = null;
+      this.previewTab = "questions";
     },
     downloadCsv() {
       const query = this.queryString();

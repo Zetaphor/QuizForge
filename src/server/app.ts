@@ -363,6 +363,10 @@ export function createApp() {
         const finishedAttempts = quiz.attempts.filter(
           (attempt) => attempt.status === "finished" && typeof attempt.scorePercent === "number"
         );
+        const latestAttempt = quiz.attempts.reduce<(typeof quiz.attempts)[number] | null>((latest, attempt) => {
+          if (!latest) return attempt;
+          return attempt.startedAt.getTime() > latest.startedAt.getTime() ? attempt : latest;
+        }, null);
         const totalFinishedScore = finishedAttempts.reduce(
           (sum, attempt) => sum + (attempt.scorePercent ?? 0),
           0
@@ -381,6 +385,7 @@ export function createApp() {
           questionCount: quiz.questions.length,
           attemptCount: quiz.attempts.length,
           completionCount: quiz.attempts.filter((attempt) => attempt.status === "finished").length,
+          lastAttemptAt: latestAttempt?.startedAt ?? null,
           lastScorePercent: latestFinishedAttempt?.scorePercent ?? null,
           averageScorePercent
         };
@@ -412,7 +417,12 @@ export function createApp() {
     const quiz = await db.quiz.findUnique({
       where: { id: req.params.id },
       include: {
-        questions: { orderBy: { questionIndex: "asc" } }
+        questions: { orderBy: { questionIndex: "asc" } },
+        sources: {
+          include: {
+            source: true
+          }
+        }
       }
     });
     if (!quiz) return res.status(404).json({ error: "Quiz not found." });
@@ -427,6 +437,13 @@ export function createApp() {
         type: q.type,
         prompt: q.prompt,
         choices: q.choicesJson ? JSON.parse(q.choicesJson) : []
+      })),
+      sources: quiz.sources.map((item) => ({
+        id: item.source.id,
+        origin: item.source.origin,
+        title: item.source.title ?? "Untitled Source",
+        externalRef: item.source.externalRef,
+        content: item.source.content
       }))
     });
   });
