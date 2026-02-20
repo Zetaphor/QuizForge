@@ -155,10 +155,18 @@ window.quizPage = function quizPage() {
     chatInput: "",
     chatLoading: false,
     chatError: "",
+    initPromise: null,
     get currentQuestion() {
       return this.quiz.questions[this.index];
     },
     async init() {
+      if (this.initPromise) {
+        return this.initPromise;
+      }
+      this.initPromise = this.initializeQuiz();
+      return this.initPromise;
+    },
+    async initializeQuiz() {
       const params = new URLSearchParams(window.location.search);
       this.quizId = params.get("quizId") || localStorage.getItem("quizId") || "";
       if (!this.quizId) {

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Analytics Dashboard</title>
+    <title>QuizForge Dashboard</title>
     <link rel="stylesheet" href="/assets/tailwind.css" />
     <script defer src="/assets/app.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
@@ -14,7 +14,7 @@
     <main class="mx-auto max-w-7xl p-6">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-3xl font-bold">Dashboard</h1>
+          <h1 class="text-3xl font-bold">QuizForge Dashboard</h1>
           <p class="mt-1 text-sm text-neutral-400">Track quiz activity, learning outcomes, and retake improvements.</p>
         </div>
         <a class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-neutral-200" href="/builder">Quiz Builder</a>
@@ -124,7 +124,7 @@
             </label>
             <div class="weak-areas-action">
               <button class="btn-primary w-full whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60" :disabled="troubleLoading" @click="startTroubleQuiz()">
-                <span x-text="troubleLoading ? 'Creating...' : 'Practice Trouble Questions'"></span>
+                <span x-text="troubleLoading ? 'Creating...' : 'Practice Quiz'"></span>
               </button>
             </div>
           </div>

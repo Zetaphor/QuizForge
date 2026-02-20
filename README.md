@@ -1,4 +1,4 @@
-# Self-Learning Quiz Maker
+# QuizForge
 
 A full-stack quiz platform that turns markdown files and YouTube transcripts into mixed-format quizzes, tracks learner performance, and surfaces weak areas for targeted practice.
 
