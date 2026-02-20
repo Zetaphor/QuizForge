@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>QuizForge Dashboard</title>
     <link rel="stylesheet" href="/assets/tailwind.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.umd.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
     <script defer src="/assets/app.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -229,12 +231,18 @@
         <ul class="mt-4 max-h-[60vh] space-y-2 overflow-y-auto text-sm">
           <template x-for="(question, idx) in (previewQuiz?.questions || [])" :key="question.id">
             <li class="rounded border border-neutral-800 bg-neutral-900/50 p-3">
-              <p class="text-xs uppercase tracking-wide text-neutral-500" x-text="`Question ${idx + 1} (${question.type})`"></p>
-              <p class="mt-1 text-neutral-100" x-text="question.prompt"></p>
+              <p class="flex items-center gap-2 text-xs tracking-wide text-neutral-500">
+                <span x-text="`Question ${idx + 1}`"></span>
+                <span
+                  class="rounded border border-neutral-700 bg-neutral-900 px-3 py-0.5 text-[11px] font-medium text-neutral-300"
+                  x-text="formatQuestionType(question.type)"
+                ></span>
+              </p>
+              <p class="markdown-content mt-1 font-normal text-neutral-100" x-html="renderMarkdown(question.prompt)"></p>
               <template x-if="question.type === 'multiple_choice' && question.choices?.length">
                 <ul class="mt-2 list-disc pl-5 text-neutral-300">
                   <template x-for="choice in question.choices" :key="choice">
-                    <li x-text="choice"></li>
+                    <li class="markdown-content" x-html="renderMarkdown(choice, true)"></li>
                   </template>
                 </ul>
               </template>

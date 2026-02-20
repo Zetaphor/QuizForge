@@ -10,6 +10,49 @@ async function jsonFetch(url, options = {}) {
   return data;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderMarkdownSafe(value, inline = false) {
+  const raw = typeof value === "string" ? value : "";
+  if (!raw) return "";
+
+  const marked = window.marked;
+  const purifier = window.DOMPurify;
+
+  if (!marked) {
+    const escaped = escapeHtml(raw);
+    return inline ? escaped : escaped.replaceAll("\n", "<br>");
+  }
+
+  let html = "";
+  if (inline && typeof marked.parseInline === "function") {
+    html = marked.parseInline(raw);
+  } else {
+    html = marked.parse(raw);
+  }
+
+  if (!purifier || typeof purifier.sanitize !== "function") {
+    return html;
+  }
+
+  return purifier.sanitize(html);
+}
+
+function getQuestionTypeLabel(type) {
+  if (type === "multiple_choice") return "Multiple Choice";
+  if (type === "open_ended") return "Open Ended";
+  return String(type || "Question")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 window.sourcePage = function sourcePage() {
   return {
     files: [],
@@ -150,6 +193,7 @@ window.quizPage = function quizPage() {
     index: 0,
     userAnswer: "",
     feedback: "",
+    feedbackType: "",
     attemptFinished: false,
     chatMessages: [],
     chatInput: "",
@@ -158,6 +202,12 @@ window.quizPage = function quizPage() {
     initPromise: null,
     get currentQuestion() {
       return this.quiz.questions[this.index];
+    },
+    renderMarkdown(value, inline = false) {
+      return renderMarkdownSafe(value, inline);
+    },
+    formatQuestionType(type) {
+      return getQuestionTypeLabel(type);
     },
     async init() {
       if (this.initPromise) {
@@ -199,9 +249,32 @@ window.quizPage = function quizPage() {
             userAnswer: this.userAnswer
           })
         });
-        this.feedback = `${result.correctness.toUpperCase()}: ${result.feedback || ""}`;
+        const correctness = result.correctness || "";
+        const normalizedCorrectness =
+          correctness === "correct"
+            ? "correct"
+            : correctness === "partially_correct"
+              ? "partial"
+              : "incorrect";
+        const label =
+          normalizedCorrectness === "correct"
+            ? "Correct"
+            : normalizedCorrectness === "partial"
+              ? "Partially correct"
+              : "Incorrect";
+        const message = (result.feedback || "").trim();
+
+        this.feedbackType = normalizedCorrectness;
+        this.feedback = message ? `${label}: ${message}` : `${label}.`;
       } catch (error) {
         this.feedback = error.message;
+        this.feedbackType = "incorrect";
+      }
+    },
+    onAnswerChanged() {
+      if (this.feedbackType === "incorrect" && this.feedback) {
+        this.feedback = "";
+        this.feedbackType = "";
       }
     },
     nextQuestion() {
@@ -209,6 +282,7 @@ window.quizPage = function quizPage() {
         this.index += 1;
         this.userAnswer = "";
         this.feedback = "";
+        this.feedbackType = "";
       }
     },
     resetChat() {
@@ -314,6 +388,12 @@ window.dashboardPage = function dashboardPage() {
     previewQuiz: null,
     previewOpen: false,
     chartInstances: {},
+    renderMarkdown(value, inline = false) {
+      return renderMarkdownSafe(value, inline);
+    },
+    formatQuestionType(type) {
+      return getQuestionTypeLabel(type);
+    },
     async init() {
       this.restoreFilters();
       await this.refreshAll();

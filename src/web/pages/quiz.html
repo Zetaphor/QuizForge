@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>QuizForge - Take Quiz</title>
     <link rel="stylesheet" href="/assets/tailwind.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.umd.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
     <script defer src="/assets/app.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="/assets/styles.css" />
@@ -29,21 +31,21 @@
         <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <section class="card">
             <p class="text-sm text-neutral-500" x-text="`Question ${index + 1} of ${quiz.questions.length}`"></p>
-            <h2 class="mt-2 text-xl font-semibold" x-text="currentQuestion.prompt"></h2>
+            <h2 class="markdown-content mt-2 text-xl font-normal" x-html="renderMarkdown(currentQuestion.prompt)"></h2>
 
             <template x-if="currentQuestion.type === 'multiple_choice'">
               <div class="mt-4 space-y-2">
                 <template x-for="(choice, choiceIndex) in currentQuestion.choices" :key="choiceIndex">
-                  <label class="flex items-center gap-2 rounded border border-neutral-700 p-2">
-                    <input type="radio" name="mcq" :value="choiceIndex" x-model="userAnswer" />
-                    <span x-text="choice"></span>
+                  <label class="flex items-start gap-2 rounded border border-neutral-700 p-2">
+                    <input type="radio" name="mcq" :value="choiceIndex" x-model="userAnswer" @change="onAnswerChanged" />
+                    <span class="markdown-content" x-html="renderMarkdown(choice, true)"></span>
                   </label>
                 </template>
               </div>
             </template>
 
             <template x-if="currentQuestion.type === 'open_ended'">
-              <textarea class="mt-4 h-32 w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-200" x-model="userAnswer" placeholder="Type your answer..."></textarea>
+              <textarea class="mt-4 h-32 w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-200" x-model="userAnswer" @input="onAnswerChanged" placeholder="Type your answer..."></textarea>
             </template>
 
             <div class="mt-4 flex flex-wrap gap-3">
@@ -51,7 +53,45 @@
               <button class="rounded border border-neutral-700 bg-neutral-900 px-4 py-2 text-neutral-200" @click="nextQuestion">Next</button>
               <button class="rounded border border-emerald-500 bg-emerald-500/10 px-4 py-2 text-emerald-400" @click="finishAttempt">Finish Quiz</button>
             </div>
-            <p class="mt-3 text-sm text-neutral-300" x-text="feedback"></p>
+            <div
+              class="mt-3 rounded border px-3 py-2 text-sm transition duration-200"
+              x-show="feedback"
+              x-transition.opacity.duration.150ms
+              :class="
+                feedbackType === 'correct'
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+                  : feedbackType === 'partial'
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-100'
+                    : feedbackType === 'incorrect'
+                      ? 'border-rose-500/40 bg-rose-500/10 text-rose-100'
+                      : 'border-neutral-700 bg-neutral-900 text-neutral-200'
+              "
+            >
+              <div class="flex items-start gap-2">
+                <span
+                  class="inline-flex min-w-12 justify-center rounded border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide"
+                  :class="
+                    feedbackType === 'correct'
+                      ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-200'
+                      : feedbackType === 'partial'
+                        ? 'border-amber-400/50 bg-amber-500/20 text-amber-200'
+                        : feedbackType === 'incorrect'
+                          ? 'border-rose-400/50 bg-rose-500/20 text-rose-200'
+                          : 'border-neutral-600 bg-neutral-800 text-neutral-300'
+                  "
+                  x-text="
+                    feedbackType === 'correct'
+                      ? 'OK'
+                      : feedbackType === 'partial'
+                        ? 'INFO'
+                        : feedbackType === 'incorrect'
+                          ? 'TRY'
+                          : 'NOTE'
+                  "
+                ></span>
+                <p class="markdown-content leading-relaxed" x-html="renderMarkdown(feedback, true)"></p>
+              </div>
+            </div>
           </section>
 
           <section class="card quiz-chat-panel flex flex-col">
