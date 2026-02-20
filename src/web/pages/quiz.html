@@ -57,7 +57,12 @@
           <section class="card quiz-chat-panel flex flex-col">
             <div class="flex items-center justify-between">
               <h3 class="text-lg font-semibold">Quiz Chat</h3>
-              <p class="text-xs text-neutral-500" x-show="attemptFinished">Chat disabled after finish</p>
+              <div class="flex items-center gap-2">
+                <button class="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 text-xs text-neutral-300 disabled:cursor-not-allowed disabled:opacity-50" @click="resetChat" :disabled="chatLoading || !chatMessages.length">
+                  Reset Chat
+                </button>
+                <p class="text-xs text-neutral-500" x-show="attemptFinished">Chat disabled after finish</p>
+              </div>
             </div>
 
             <div class="quiz-chat-log mt-4 flex-1 space-y-3 overflow-y-auto rounded border border-neutral-800 bg-neutral-950/60 p-3">

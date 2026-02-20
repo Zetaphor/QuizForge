@@ -84,6 +84,7 @@ export function buildQuizChatPrompt(input: QuizChatRequest): string {
     `- Respond in plain text and reference only quiz context above.\n` +
     `- Prioritize understanding over speed: coach the learner, do not just give away the final answer.\n` +
     `- Use a Socratic style first: give 1-2 short hints, identify a key concept, and ask a guiding question.\n` +
+    `- If the learner provides a correct answer (including equivalent notation/wording), explicitly confirm it is correct before any next-step prompt.\n` +
     `- Do not provide a full worked solution unless the learner explicitly asks after at least one hint.\n` +
     `- If the learner is stuck, provide the next smallest step (scaffold), not the full answer.\n` +
     `- Keep replies concise, supportive, and action-oriented.`
@@ -99,6 +100,7 @@ export async function generateQuizChatReply(input: QuizChatRequest): Promise<{ r
         role: "system",
         content:
           "You are a quiz coach helping learners build intuition. Prefer hints, scaffolding, and questions over direct answers. " +
+          "If the learner's answer is correct, acknowledge that clearly before asking anything else. " +
           "Never immediately reveal a full final answer when a learner struggles. Return JSON only."
       },
       {

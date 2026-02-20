@@ -211,6 +211,12 @@ window.quizPage = function quizPage() {
         this.feedback = "";
       }
     },
+    resetChat() {
+      if (this.chatLoading) return;
+      this.chatMessages = [];
+      this.chatInput = "";
+      this.chatError = "";
+    },
     async sendChatMessage() {
       if (!this.attemptId || !this.currentQuestion || this.chatLoading || this.attemptFinished) return;
       const trimmed = this.chatInput.trim();
