@@ -92,7 +92,7 @@ Configured in `.env`:
 
 ## Use GPT-OSS 120B via Groq Free Tier
 
-This app supports OpenAI-compatible endpoints, so you can run it against Groq.
+This app supports OpenAI-compatible endpoints, so you can run it against [Groq](https://groq.com/).
 
 1. Create a Groq account and generate an API key.
 2. Update your `.env`:
