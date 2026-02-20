@@ -7,9 +7,10 @@ import {
   formatAttemptsCsv,
   getAnalyticsSnapshot,
   getAttemptsExportRows,
+  getTroubleQuestionCandidates,
   parseAnalyticsFilters
 } from "./services/analytics.js";
-import { generateQuizIteratively } from "./services/quiz-generator.js";
+import { generateQuizIteratively, type FinalQuiz } from "./services/quiz-generator.js";
 import {
   hashContent,
   normalizeMarkdownSource,
@@ -58,6 +59,66 @@ function toBoolean(input: unknown): boolean {
   if (typeof input === "boolean") return input;
   if (typeof input === "string") return ["1", "true", "yes", "on"].includes(input.trim().toLowerCase());
   return false;
+}
+
+function clampQuestionCount(value: number): number {
+  return Math.max(4, Math.min(20, Math.round(value)));
+}
+
+function parseQuestionCount(input: unknown): number | undefined {
+  if (typeof input !== "number" || !Number.isFinite(input)) return undefined;
+  return clampQuestionCount(input);
+}
+
+function parseTroubleMode(input: unknown): "reuse_exact" | "regenerate_similar" | null {
+  if (input === "reuse_exact" || input === "regenerate_similar") return input;
+  return null;
+}
+
+async function saveQuizFromGeneratedPayload(params: {
+  quiz: FinalQuiz;
+  metadata: Record<string, unknown>;
+  difficulty?: unknown;
+  sourceDocs?: Array<{ id: string }>;
+}) {
+  const { quiz, metadata, difficulty, sourceDocs } = params;
+  return db.$transaction(async (tx) => {
+    const created = await tx.quiz.create({
+      data: {
+        title: quiz.title,
+        topic: quiz.topic,
+        difficulty: typeof difficulty === "string" ? difficulty : "mixed",
+        generationMetadata: JSON.stringify(metadata),
+        quizJson: JSON.stringify(quiz),
+        ...(sourceDocs?.length
+          ? {
+              sources: {
+                create: sourceDocs.map((source) => ({
+                  sourceId: source.id
+                }))
+              }
+            }
+          : {})
+      }
+    });
+
+    for (const [index, question] of quiz.questions.entries()) {
+      await tx.question.create({
+        data: {
+          quizId: created.id,
+          questionIndex: index,
+          type: question.type,
+          prompt: question.prompt,
+          choicesJson: question.choices ? JSON.stringify(question.choices) : null,
+          expectedAnswer: question.expectedAnswer ?? null,
+          rubricJson: question.rubric ? JSON.stringify({ rubric: question.rubric }) : null,
+          metadataJson: JSON.stringify({ explanation: question.explanation ?? null, correctChoiceIndex: question.correctChoiceIndex ?? null })
+        }
+      });
+    }
+
+    return created;
+  });
 }
 
 export function createApp() {
@@ -161,41 +222,14 @@ export function createApp() {
         description: req.body.description,
         topic: req.body.topic,
         autoMetadata: toBoolean(req.body.autoMetadata),
-        questionCount: typeof req.body.questionCount === "number" ? req.body.questionCount : undefined
+        questionCount: parseQuestionCount(req.body.questionCount)
       });
 
-      const createdQuiz = await db.$transaction(async (tx) => {
-        const created = await tx.quiz.create({
-          data: {
-            title: quiz.title,
-            topic: quiz.topic,
-            difficulty: req.body.difficulty ?? "mixed",
-            generationMetadata: JSON.stringify(metadata),
-            quizJson: JSON.stringify(quiz),
-            sources: {
-              create: sourceDocs.map((source) => ({
-                sourceId: source.id
-              }))
-            }
-          }
-        });
-
-        for (const [index, question] of quiz.questions.entries()) {
-          await tx.question.create({
-            data: {
-              quizId: created.id,
-              questionIndex: index,
-              type: question.type,
-              prompt: question.prompt,
-              choicesJson: question.choices ? JSON.stringify(question.choices) : null,
-              expectedAnswer: question.expectedAnswer ?? null,
-              rubricJson: question.rubric ? JSON.stringify({ rubric: question.rubric }) : null,
-              metadataJson: JSON.stringify({ explanation: question.explanation ?? null, correctChoiceIndex: question.correctChoiceIndex ?? null })
-            }
-          });
-        }
-
-        return created;
+      const createdQuiz = await saveQuizFromGeneratedPayload({
+        quiz,
+        metadata,
+        difficulty: req.body.difficulty,
+        sourceDocs: sourceDocs.map((source) => ({ id: source.id }))
       });
       console.log(`[${requestId}] Quiz ${createdQuiz.id} saved in ${Date.now() - startedAt}ms.`);
 
@@ -205,6 +239,114 @@ export function createApp() {
       console.error(`[${requestId}] Quiz generation failed after ${Date.now() - startedAt}ms: ${message}`);
       return res.status(500).json({ error: message });
     }
+  });
+
+  app.post("/api/quizzes/custom/trouble", async (req, res) => {
+    const mode = parseTroubleMode(req.body?.mode);
+    if (!mode) {
+      return res.status(400).json({ error: "mode must be 'reuse_exact' or 'regenerate_similar'." });
+    }
+
+    const requestedCount = parseQuestionCount(req.body?.questionCount);
+    const customTitle = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+    const candidates = await getTroubleQuestionCandidates(db);
+    if (!candidates.length) {
+      return res.status(404).json({ error: "No missed questions found yet. Complete at least one quiz attempt first." });
+    }
+
+    if (mode === "reuse_exact") {
+      const selected = requestedCount ? candidates.slice(0, requestedCount) : candidates;
+      const safeSelected = selected.slice(0, 20);
+      const quiz = {
+        title: customTitle || "Trouble Questions Practice",
+        topic: "Targeted Review",
+        summary: "A focused quiz built from questions you have previously missed.",
+        questions: safeSelected.map((item) => {
+          const metadata = item.metadataJson ? JSON.parse(item.metadataJson) : {};
+          return {
+            type: item.type === "multiple_choice" ? "multiple_choice" : "open_ended",
+            prompt: item.prompt,
+            choices: item.choicesJson ? (JSON.parse(item.choicesJson) as string[]) : undefined,
+            correctChoiceIndex:
+              typeof metadata.correctChoiceIndex === "number" ? Number(metadata.correctChoiceIndex) : undefined,
+            expectedAnswer: item.expectedAnswer ?? undefined,
+            rubric: item.rubricJson ? JSON.parse(item.rubricJson).rubric : undefined,
+            explanation: typeof metadata.explanation === "string" ? metadata.explanation : undefined
+          };
+        })
+      } satisfies FinalQuiz;
+
+      const createdQuiz = await saveQuizFromGeneratedPayload({
+        quiz,
+        metadata: {
+          generationMode: "trouble_custom",
+          troubleQuiz: {
+            mode,
+            selectedQuestionCount: safeSelected.length,
+            weakPromptCount: candidates.length
+          }
+        }
+      });
+
+      return res.json({
+        quizId: createdQuiz.id,
+        quiz,
+        selectionSummary: {
+          weakPromptCount: candidates.length,
+          selectedQuestionCount: safeSelected.length
+        }
+      });
+    }
+
+    const sourceQuizIds = [...new Set(candidates.map((candidate) => candidate.quizId))];
+    const sourceDocs = await db.sourceDocument.findMany({
+      where: {
+        quizzes: {
+          some: {
+            quizId: { in: sourceQuizIds }
+          }
+        }
+      }
+    });
+
+    if (!sourceDocs.length) {
+      return res.status(400).json({
+        error: "Could not build source context for regenerated trouble quiz. Try exact-reuse mode instead."
+      });
+    }
+
+    const focusPrompts = candidates.slice(0, 12).map((candidate) => candidate.prompt);
+    const { quiz, metadata } = await generateQuizIteratively({
+      sources: sourceDocs.map(toNormalizedSource),
+      title: customTitle || "Trouble Questions Remix",
+      description: "A regenerated quiz focused on your most-missed concepts.",
+      topic: "Targeted Review",
+      autoMetadata: false,
+      questionCount: requestedCount,
+      focusPrompts
+    });
+
+    const createdQuiz = await saveQuizFromGeneratedPayload({
+      quiz,
+      metadata: {
+        ...metadata,
+        troubleQuiz: {
+          mode,
+          weakPromptCount: candidates.length,
+          sourceCount: sourceDocs.length
+        }
+      },
+      sourceDocs: sourceDocs.map((source) => ({ id: source.id }))
+    });
+
+    return res.json({
+      quizId: createdQuiz.id,
+      quiz,
+      selectionSummary: {
+        weakPromptCount: candidates.length,
+        sourceCount: sourceDocs.length
+      }
+    });
   });
 
   app.get("/api/quizzes", async (_req, res) => {
@@ -225,6 +367,26 @@ export function createApp() {
         questionCount: quiz.questions.length,
         attemptCount: quiz.attempts.length
       }))
+    });
+  });
+
+  app.delete("/api/quizzes/:id", async (req, res) => {
+    const quiz = await db.quiz.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, title: true }
+    });
+    if (!quiz) return res.status(404).json({ error: "Quiz not found." });
+
+    await db.quiz.delete({
+      where: { id: quiz.id }
+    });
+
+    return res.json({
+      ok: true,
+      deletedQuiz: {
+        id: quiz.id,
+        title: quiz.title
+      }
     });
   });
 

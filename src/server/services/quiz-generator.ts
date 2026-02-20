@@ -91,6 +91,7 @@ type GenerateInput = {
   topic?: string;
   autoMetadata?: boolean;
   questionCount?: number;
+  focusPrompts?: string[];
 };
 
 const metadataSchema = z.object({
@@ -180,6 +181,10 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
   const userTopic = input.topic?.trim();
   const userDescription = input.description?.trim();
   const sourcePacket = buildSourcePacket(input.sources);
+  const focusPrompts = coerceStringArrayItems(input.focusPrompts).slice(0, 12);
+  const focusGuidance = focusPrompts.length
+    ? `\nPriority focus areas (questions the learner has struggled with):\n${focusPrompts.map((prompt) => `- ${prompt}`).join("\n")}`
+    : "";
   const llm = new LlmJsonClient();
   logStep("Starting metadata generation pass.");
 
@@ -194,7 +199,8 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
         content:
           "From these sources, produce a concise quiz title, topic, and description.\n" +
           "Title should be <= 10 words. Description should be 1-2 sentences.\n\n" +
-          sourcePacket
+          sourcePacket +
+          focusGuidance
       }
     ],
     metadataSchema,
@@ -222,7 +228,7 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
         role: "user",
         content:
           `Analyze the sources and extract a study blueprint.\n` +
-          `Need: topic, learningGoals, concepts, misconceptions.\n\n${sourcePacket}`
+          `Need: topic, learningGoals, concepts, misconceptions.\n\n${sourcePacket}${focusGuidance}`
       }
     ],
     coverageSchema,
@@ -259,8 +265,9 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
         role: "user",
         content:
           `Create ${resolvedQuestionCount} questions from this blueprint.\n` +
+          `Bias question selection toward the learner's weak areas when provided.\n` +
           `Must mix multiple_choice and open_ended.\n` +
-          `Blueprint: ${JSON.stringify(coverage)}`
+          `Blueprint: ${JSON.stringify(coverage)}${focusGuidance}`
       }
     ],
     questionDraftSchema,
@@ -281,7 +288,7 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
           `Critique this draft for coverage, difficulty, and ambiguity.\n` +
           `Return strengths/issues/revisions.\n` +
           `Draft: ${JSON.stringify(draft)}\n` +
-          `Blueprint: ${JSON.stringify(coverage)}`
+          `Blueprint: ${JSON.stringify(coverage)}${focusGuidance}`
       }
     ],
     critiqueSchema,
@@ -340,7 +347,8 @@ export async function generateQuizIteratively(input: GenerateInput): Promise<{
         description: resolvedDescription,
         autoMetadata,
         questionCount: resolvedQuestionCount,
-        autoQuestionCount: providedQuestionCount == null
+        autoQuestionCount: providedQuestionCount == null,
+        focusedTroublePrompts: focusPrompts
       },
       generatedMetadata,
       coverage,

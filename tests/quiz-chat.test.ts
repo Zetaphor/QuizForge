@@ -31,6 +31,8 @@ describe("quiz chat service", () => {
     expect(prompt).toContain("Status: unanswered");
     expect(prompt).toContain("Your latest answer: Atomicity, Consistency, Isolation, Durability");
     expect(prompt).toContain("Learner message: Can you compare these concepts?");
+    expect(prompt).toContain("Prioritize understanding over speed");
+    expect(prompt).toContain("Do not provide a full worked solution unless the learner explicitly asks");
   });
 
   it("returns fallback reply in mock mode", async () => {

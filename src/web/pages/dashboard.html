@@ -110,6 +110,25 @@
       <section class="mt-6 grid gap-4 xl:grid-cols-2">
         <article class="card">
           <h2 class="text-lg font-semibold">Weak Areas</h2>
+          <div class="weak-areas-controls mt-3 rounded border border-neutral-800 bg-neutral-900/50 p-3">
+            <label class="weak-areas-field text-sm">
+              <span class="mb-1 block text-neutral-300">Mode</span>
+              <select class="w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-100" x-model="troubleMode">
+                <option value="reuse_exact">Reuse exact missed questions</option>
+                <option value="regenerate_similar">Regenerate similar questions</option>
+              </select>
+            </label>
+            <label class="weak-areas-field text-sm">
+              <span class="mb-1 block text-neutral-300">Question count (4-20)</span>
+              <input class="w-full rounded border border-neutral-700 bg-neutral-900 p-2 text-neutral-100" type="number" min="4" max="20" x-model.number="troubleQuestionCount" />
+            </label>
+            <div class="weak-areas-action">
+              <button class="btn-primary w-full whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60" :disabled="troubleLoading" @click="startTroubleQuiz()">
+                <span x-text="troubleLoading ? 'Creating...' : 'Practice Trouble Questions'"></span>
+              </button>
+            </div>
+          </div>
+          <p class="mt-2 min-h-4 text-xs text-neutral-400" x-text="troubleStatus"></p>
           <ul class="mt-3 space-y-2 text-sm">
             <template x-for="item in learning.weakAreas" :key="item.prompt">
               <li class="rounded border border-neutral-800 bg-neutral-900/60 p-2">
@@ -180,6 +199,9 @@
                         </button>
                         <button class="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 text-xs text-neutral-200" @click="openQuizPreview(quiz.id)">
                           Preview Questions
+                        </button>
+                        <button class="rounded border border-rose-700 bg-rose-900/20 px-3 py-1 text-xs text-rose-300" @click="deleteQuiz(quiz.id, quiz.title)">
+                          Delete Quiz
                         </button>
                       </div>
                     </td>

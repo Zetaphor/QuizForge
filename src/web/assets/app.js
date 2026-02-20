@@ -293,6 +293,10 @@ window.dashboardPage = function dashboardPage() {
     },
     availableQuizzes: [],
     quizCatalog: [],
+    troubleMode: "reuse_exact",
+    troubleQuestionCount: 8,
+    troubleLoading: false,
+    troubleStatus: "",
     previewQuiz: null,
     previewOpen: false,
     chartInstances: {},
@@ -538,6 +542,23 @@ window.dashboardPage = function dashboardPage() {
       this.previewQuiz = payload;
       this.previewOpen = true;
     },
+    async deleteQuiz(quizId, quizTitle) {
+      const confirmed = window.confirm(`Delete quiz "${quizTitle || "Untitled Quiz"}"? This cannot be undone.`);
+      if (!confirmed) return;
+      this.status = "Deleting quiz...";
+      try {
+        await jsonFetch(`/api/quizzes/${encodeURIComponent(quizId)}`, {
+          method: "DELETE"
+        });
+        if (this.previewQuiz?.id === quizId) {
+          this.closeQuizPreview();
+        }
+        await this.loadQuizCatalog();
+        this.status = "Quiz deleted.";
+      } catch (error) {
+        this.status = error.message;
+      }
+    },
     closeQuizPreview() {
       this.previewOpen = false;
       this.previewQuiz = null;
@@ -545,6 +566,27 @@ window.dashboardPage = function dashboardPage() {
     downloadCsv() {
       const query = this.queryString();
       window.location.href = `/api/analytics/export.csv?${query}`;
+    },
+    async startTroubleQuiz() {
+      if (this.troubleLoading) return;
+      this.troubleLoading = true;
+      this.troubleStatus = "Creating your trouble quiz...";
+      try {
+        const payload = await jsonFetch("/api/quizzes/custom/trouble", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: this.troubleMode,
+            questionCount: Number(this.troubleQuestionCount) || undefined
+          })
+        });
+        this.troubleStatus = "Trouble quiz ready. Redirecting...";
+        window.location.href = `/quiz?quizId=${encodeURIComponent(payload.quizId)}`;
+      } catch (error) {
+        this.troubleStatus = error.message;
+      } finally {
+        this.troubleLoading = false;
+      }
     }
   };
 };

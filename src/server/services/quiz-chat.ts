@@ -80,7 +80,13 @@ export function buildQuizChatPrompt(input: QuizChatRequest): string {
     `${currentQuestionBlock}\n` +
     `Question and answer history:\n${questionHistory}\n\n` +
     `Learner message: ${input.message}\n` +
-    `Instructions: respond in plain text, reference only quiz context above, and keep the answer concise and supportive.`
+    `Instructions:\n` +
+    `- Respond in plain text and reference only quiz context above.\n` +
+    `- Prioritize understanding over speed: coach the learner, do not just give away the final answer.\n` +
+    `- Use a Socratic style first: give 1-2 short hints, identify a key concept, and ask a guiding question.\n` +
+    `- Do not provide a full worked solution unless the learner explicitly asks after at least one hint.\n` +
+    `- If the learner is stuck, provide the next smallest step (scaffold), not the full answer.\n` +
+    `- Keep replies concise, supportive, and action-oriented.`
   );
 }
 
@@ -91,7 +97,9 @@ export async function generateQuizChatReply(input: QuizChatRequest): Promise<{ r
     [
       {
         role: "system",
-        content: "You are a quiz coach helping learners review current and previous questions. Return JSON only."
+        content:
+          "You are a quiz coach helping learners build intuition. Prefer hints, scaffolding, and questions over direct answers. " +
+          "Never immediately reveal a full final answer when a learner struggles. Return JSON only."
       },
       {
         role: "user",
@@ -104,7 +112,7 @@ export async function generateQuizChatReply(input: QuizChatRequest): Promise<{ r
       return {
         reply:
           `Let's review this together. So far you've answered ${answeredCount} ` +
-          `of ${input.quiz.questions.length} questions. Focus on the core concept in the current prompt and compare it with your earlier feedback.`
+          `of ${input.quiz.questions.length} questions. Start by naming the core concept in the current prompt, then explain one reason it matters.`
       };
     }
   );

@@ -25,6 +25,19 @@ type AttemptWithRelations = {
 
 type QuizSummary = { id: string; title: string; topic: string | null; createdAt: Date };
 
+export type TroubleQuestionCandidate = {
+  questionId: string;
+  quizId: string;
+  prompt: string;
+  type: string;
+  choicesJson: string | null;
+  expectedAnswer: string | null;
+  rubricJson: string | null;
+  metadataJson: string | null;
+  missCount: number;
+  lastMissedAt: Date;
+};
+
 function clampRange(value: string): AnalyticsRange {
   if (value === "1d" || value === "7d" || value === "30d" || value === "90d" || value === "all") {
     return value;
@@ -291,4 +304,58 @@ export async function getAttemptsExportRows(prisma: PrismaClient, filters: Analy
     scorePercent: attempt.scorePercent,
     answerCount: attempt.answers.length
   }));
+}
+
+export async function getTroubleQuestionCandidates(prisma: PrismaClient): Promise<TroubleQuestionCandidate[]> {
+  const missedAnswers = await prisma.attemptAnswer.findMany({
+    where: {
+      score: { lt: 0.5 }
+    },
+    select: {
+      questionId: true,
+      createdAt: true,
+      question: {
+        select: {
+          id: true,
+          quizId: true,
+          prompt: true,
+          type: true,
+          choicesJson: true,
+          expectedAnswer: true,
+          rubricJson: true,
+          metadataJson: true
+        }
+      }
+    }
+  });
+
+  const grouped = new Map<string, TroubleQuestionCandidate>();
+  for (const answer of missedAnswers) {
+    const existing = grouped.get(answer.questionId);
+    if (!existing) {
+      grouped.set(answer.questionId, {
+        questionId: answer.question.id,
+        quizId: answer.question.quizId,
+        prompt: answer.question.prompt,
+        type: answer.question.type,
+        choicesJson: answer.question.choicesJson,
+        expectedAnswer: answer.question.expectedAnswer,
+        rubricJson: answer.question.rubricJson,
+        metadataJson: answer.question.metadataJson,
+        missCount: 1,
+        lastMissedAt: answer.createdAt
+      });
+      continue;
+    }
+
+    existing.missCount += 1;
+    if (answer.createdAt.getTime() > existing.lastMissedAt.getTime()) {
+      existing.lastMissedAt = answer.createdAt;
+    }
+  }
+
+  return [...grouped.values()].sort((a, b) => {
+    if (b.missCount !== a.missCount) return b.missCount - a.missCount;
+    return b.lastMissedAt.getTime() - a.lastMissedAt.getTime();
+  });
 }

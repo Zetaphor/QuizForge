@@ -51,4 +51,16 @@ describe("generateQuizIteratively", () => {
     expect(large).toBeGreaterThan(small);
     expect(large).toBeLessThanOrEqual(20);
   });
+
+  it("includes trouble focus prompts in metadata when provided", async () => {
+    process.env.MOCK_LLM = "1";
+    const result = await generateQuizIteratively({
+      sources: [{ origin: "markdown", title: "Sample", content: "Sample content for focused test." }],
+      topic: "Focused Topic",
+      focusPrompts: ["Prompt one", "Prompt two"]
+    });
+
+    const resolved = result.metadata.resolvedMetadata as { focusedTroublePrompts?: string[] };
+    expect(resolved.focusedTroublePrompts).toEqual(["Prompt one", "Prompt two"]);
+  });
 });
